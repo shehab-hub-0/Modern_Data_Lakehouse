@@ -1,0 +1,30 @@
+name: 'ecommerce_dbt'
+version: '1.0.0'
+config-version: 2
+
+profile: 'ecommerce_dbt'
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+
+seeds:
+  ecommerce_dbt:
+    +schema: bronze
+
+models:
+  ecommerce_dbt:
+    bronze:
+      +tags: bronze
+      +schema: bronze
+      +materialized: table
+    silver:
+      +tags: silver
+      +schema: silver
+      +materialized: table
+    gold:
+      +tags: gold
+      +schema: gold
+      +materialized: table
+

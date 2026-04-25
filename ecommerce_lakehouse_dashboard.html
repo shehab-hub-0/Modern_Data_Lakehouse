@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lakehouse Analytics</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+    <style>
+        :root {
+            --bg: #080b10;
+            --surface: #0d1117;
+            --surface2: #131920;
+            --border: rgba(255, 255, 255, 0.06);
+            --border2: rgba(255, 255, 255, 0.12);
+            --text: #e8edf3;
+            --muted: #5a6a7a;
+            --accent: #00d4aa;
+            --accent2: #4488ff;
+            --accent3: #ff6b6b;
+            --accent4: #ffaa44;
+            --font-display: 'Syne', sans-serif;
+            --font-mono: 'DM Mono', monospace;
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--font-mono);
+            font-size: 13px;
+            line-height: 1.6;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* grid noise texture */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(0, 212, 170, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 212, 170, 0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* SIDEBAR */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 220px;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+            padding: 0;
+        }
+
+        .logo {
+            padding: 28px 24px 24px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo-mark {
+            font-family: var(--font-display);
+            font-size: 17px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            color: var(--text);
+        }
+
+        .logo-mark span {
+            color: var(--accent);
+        }
+
+        .logo-sub {
+            font-size: 10px;
+            color: var(--muted);
+            margin-top: 2px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .nav {
+            padding: 20px 12px;
+            flex: 1;
+        }
+
+        .nav-section {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--muted);
+            padding: 0 12px;
+            margin: 16px 0 6px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 400;
+            transition: all 0.15s;
+            margin-bottom: 2px;
+            border: 1px solid transparent;
+        }
+
+        .nav-item:hover {
+            background: var(--surface2);
+            color: var(--text);
+        }
+
+        .nav-item.active {
+            background: rgba(0, 212, 170, 0.08);
+            color: var(--accent);
+            border-color: rgba(0, 212, 170, 0.2);
+        }
+
+        .nav-icon {
+            width: 16px;
+            height: 16px;
+            opacity: 0.7;
+            flex-shrink: 0;
+        }
+
+        .nav-item.active .nav-icon {
+            opacity: 1;
+        }
+
+        .sidebar-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--border);
+            font-size: 10px;
+            color: var(--muted);
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            background: var(--accent);
+            border-radius: 50%;
+            margin-right: 6px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.3;
+            }
+        }
+
+        /* MAIN */
+        .main {
+            margin-left: 220px;
+            min-height: 100vh;
+            position: relative;
+            z-index: 1;
+        }
+
+        .topbar {
+            height: 56px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 32px;
+            background: rgba(8, 11, 16, 0.8);
+            backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .topbar-left {
+            font-family: var(--font-display);
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .topbar-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .badge {
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 500;
+            background: rgba(0, 212, 170, 0.1);
+            color: var(--accent);
+            border: 1px solid rgba(0, 212, 170, 0.2);
+        }
+
+        .content {
+            padding: 32px;
+        }
+
+        /* PAGE visibility */
+        .page {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* KPI ROW */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .kpi-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+
+        .kpi-card:hover {
+            border-color: var(--border2);
+        }
+
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+        }
+
+        .kpi-card.teal::before {
+            background: var(--accent);
+        }
+
+        .kpi-card.blue::before {
+            background: var(--accent2);
+        }
+
+        .kpi-card.red::before {
+            background: var(--accent3);
+        }
+
+        .kpi-card.amber::before {
+            background: var(--accent4);
+        }
+
+        .kpi-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--muted);
+            margin-bottom: 10px;
+        }
+
+        .kpi-value {
+            font-family: var(--font-display);
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--text);
+            line-height: 1;
+            margin-bottom: 8px;
+        }
+
+        .kpi-delta {
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .kpi-delta.up {
+            color: var(--accent);
+        }
+
+        .kpi-delta.dn {
+            color: var(--accent3);
+        }
+
+        .kpi-delta.nt {
+            color: var(--muted);
+        }
+
+        /* CHART GRID */
+        .chart-grid {
+            display: grid;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .chart-grid.cols-2 {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .chart-grid.cols-3 {
+            grid-template-columns: 2fr 1fr;
+        }
+
+        .chart-grid.cols-1 {
+            grid-template-columns: 1fr;
+        }
+
+        .chart-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px;
+        }
+
+        .chart-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .chart-title {
+            font-family: var(--font-display);
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .chart-sub {
+            font-size: 10px;
+            color: var(--muted);
+            margin-top: 1px;
+        }
+
+        .legend {
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+            font-size: 11px;
+            color: var(--muted);
+            margin-bottom: 12px;
+        }
+
+        .leg {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .leg-sq {
+            width: 8px;
+            height: 8px;
+            border-radius: 2px;
+            flex-shrink: 0;
+        }
+
+        /* CHART SIZES */
+        .h-200 {
+            position: relative;
+            height: 200px;
+        }
+
+        .h-240 {
+            position: relative;
+            height: 240px;
+        }
+
+        .h-160 {
+            position: relative;
+            height: 160px;
+        }
+
+        .h-280 {
+            position: relative;
+            height: 280px;
+        }
+
+        /* TABLE */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        .data-table th {
+            text-align: left;
+            padding: 8px 12px;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+            border-bottom: 1px solid var(--border);
+            font-weight: 400;
+        }
+
+        .data-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text);
+        }
+
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .data-table tr:hover td {
+            background: var(--surface2);
+        }
+
+        .pill {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 500;
+        }
+
+        .pill.ok {
+            background: rgba(0, 212, 170, 0.1);
+            color: var(--accent);
+        }
+
+        .pill.warn {
+            background: rgba(255, 170, 68, 0.1);
+            color: var(--accent4);
+        }
+
+        .pill.bad {
+            background: rgba(255, 107, 107, 0.1);
+            color: var(--accent3);
+        }
+    </style>
+</head>
+
+<body>
+
+    <aside class="sidebar">
+        <div class="logo">
+            <div class="logo-mark">Lake<span>house</span></div>
+            <div class="logo-sub">Analytics · Gold Layer</div>
+        </div>
+        <nav class="nav">
+            <div class="nav-section">Dashboards</div>
+            <div class="nav-item active" onclick="showPage('financial',this)">
+                <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <rect x="1" y="8" width="3" height="7" rx="1" />
+                    <rect x="6" y="5" width="3" height="10" rx="1" />
+                    <rect x="11" y="2" width="3" height="13" rx="1" />
+                </svg>
+                Financial
+            </div>
+            <div class="nav-item" onclick="showPage('shipping',this)">
+                <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M1 4h10v8H1zM11 6l4 2v4h-4" />
+                    <circle cx="4" cy="13" r="1.5" />
+                    <circle cx="12" cy="13" r="1.5" />
+                </svg>
+                Shipping
+            </div>
+            <div class="nav-item" onclick="showPage('inventory',this)">
+                <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <rect x="1" y="1" width="6" height="6" rx="1" />
+                    <rect x="9" y="1" width="6" height="6" rx="1" />
+                    <rect x="1" y="9" width="6" height="6" rx="1" />
+                    <rect x="9" y="9" width="6" height="6" rx="1" />
+                </svg>
+                Inventory
+            </div>
+            <div class="nav-item" onclick="showPage('marketing',this)">
+                <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="8" cy="8" r="7" />
+                    <path d="M8 1v7l4 2" />
+                </svg>
+                Marketing
+            </div>
+            <div class="nav-section">Data</div>
+            <div class="nav-item">
+                <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <ellipse cx="8" cy="4" rx="7" ry="2.5" />
+                    <path d="M1 4v4c0 1.4 3.1 2.5 7 2.5S15 9.4 15 8V4" />
+                    <path d="M1 8v4c0 1.4 3.1 2.5 7 2.5S15 13.4 15 12V8" />
+                </svg>
+                Raw tables
+            </div>
+            <div class="nav-item">
+                <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M2 2h12v12H2z" />
+                    <path d="M5 6h6M5 9h4" />
+                </svg>
+                Lineage
+            </div>
+        </nav>
+        <div class="sidebar-footer">
+            <div><span class="status-dot"></span>Trino · localhost:8080</div>
+            <div style="margin-top:4px">dbt 1.10.10 · iceberg</div>
+        </div>
+    </aside>
+
+    <main class="main">
+        <div class="topbar">
+            <div class="topbar-left" id="page-title">Financial Revenue</div>
+            <div class="topbar-right">
+                <span>Apr 25, 2026</span>
+                <span>|</span>
+                <span>1,000 records</span>
+                <span class="badge">Live</span>
+            </div>
+        </div>
+
+        <div class="content">
+
+            <!-- FINANCIAL -->
+            <div id="financial" class="page active">
+                <div class="kpi-grid">
+                    <div class="kpi-card teal">
+                        <div class="kpi-label">Gross revenue</div>
+                        <div class="kpi-value">$284K</div>
+                        <div class="kpi-delta up">↑ 8.4% vs last month</div>
+                    </div>
+                    <div class="kpi-card blue">
+                        <div class="kpi-label">Net revenue</div>
+                        <div class="kpi-value">$261K</div>
+                        <div class="kpi-delta up">↑ 7.1% vs last month</div>
+                    </div>
+                    <div class="kpi-card amber">
+                        <div class="kpi-label">Success rate</div>
+                        <div class="kpi-value">73.2%</div>
+                        <div class="kpi-delta nt">— stable</div>
+                    </div>
+                    <div class="kpi-card red">
+                        <div class="kpi-label">Gateway fees</div>
+                        <div class="kpi-value">$23K</div>
+                        <div class="kpi-delta dn">↑ 2.1% vs last month</div>
+                    </div>
+                </div>
+
+                <div class="chart-grid cols-3">
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <div>
+                                <div class="chart-title">Revenue trend</div>
+                                <div class="chart-sub">Gross vs net · 7 months</div>
+                            </div>
+                        </div>
+                        <div class="legend">
+                            <div class="leg">
+                                <div class="leg-sq" style="background:#00d4aa"></div>Gross
+                            </div>
+                            <div class="leg">
+                                <div class="leg-sq" style="background:#4488ff"></div>Net
+                            </div>
+                        </div>
+                        <div class="h-240"><canvas id="c-rev-trend" role="img"
+                                aria-label="Revenue trend line chart"></canvas></div>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <div>
+                                <div class="chart-title">Payment method</div>
+                                <div class="chart-sub">By volume</div>
+                            </div>
+                        </div>
+                        <div class="h-240"><canvas id="c-payment" role="img"
+                                aria-label="Payment method doughnut chart"></canvas>
+                        </div>
+                        <div class="legend" style="margin-top:12px;margin-bottom:0;justify-content:center">
+                            <div class="leg">
+                                <div class="leg-sq" style="background:#4488ff"></div>Credit 42%
+                            </div>
+                            <div class="leg">
+                                <div class="leg-sq" style="background:#00d4aa"></div>PayPal 28%
+                            </div>
+                            <div class="leg">
+                                <div class="leg-sq" style="background:#ffaa44"></div>Debit 19%
+                            </div>
+                            <div class="leg">
+                                <div class="leg-sq" style="background:#5a6a7a"></div>Other 11%
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chart-grid cols-1">
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <div>
+                                <div class="chart-title">Daily transaction volume</div>
+                                <div class="chart-sub">Last 10 days</div>
+                            </div>
+                        </div>
+                        <div class="h-160"><canvas id="c-txn-vol" role="img"
+                                aria-label="Daily transaction volume bar chart"></canvas></div>
+                    </div>
+                </div>
+
+                <div class="chart-card" style="margin-top:12px">
+                    <div class="chart-header">
+                        <div class="chart-title">Top transactions</div>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Method</th>
+                                <th>Transactions</th>
+                                <th>Gross</th>
+                                <th>Net</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Credit card</td>
+                                <td>420</td>
+                                <td>$119K</td>
+                                <td>$109K</td>
+                                <td><span class="pill ok">Active</span></td>
+                            </tr>
+                            <tr>
+                                <td>PayPal</td>
+                                <td>280</td>
+                                <td>$79K</td>
+                                <td>$73K</td>
+                                <td><span class="pill ok">Active</span></td>
+                            </tr>
+                            <tr>
+                                <td>Debit card</td>
+                                <td>190</td>
+                                <td>$54K</td>
+                                <td>$50K</td>
+                                <td><span class="pill ok">Active</span></td>
+                            </tr>
+                            <tr>
+                                <td>Bank transfer</td>
+                                <td>70</td>
+                                <td>$21K</td>
+                                <td>$19K</td>
+                                <td><span class="pill warn">Review</span></td>
+                            </tr>
+                            <tr>
+                                <td>Crypto</td>
+                                <td>40</td>
+                                <td>$11K</td>
+                                <td>$10K</td>
+                                <td><span class="pill bad">Limited</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- SHIPPING -->
+            <div id="shipping" class="page">
+                <div class="kpi-grid">
+                    <div class="kpi-card teal">
+                        <div class="kpi-label">Total shipments</div>
+                        <div class="kpi-value">1,000</div>
+                        <div class="kpi-delta nt">— this period</div>
+                    </div>
+                    <div class="kpi-card blue">
+                        <div class="kpi-label">Avg delivery</div>
+                        <div class="kpi-value">4.2d</div>
+                        <div class="kpi-delta up">↓ 0.3d improved</div>
+                    </div>
+                    <div class="kpi-card red">
+                        <div class="kpi-label">Delay rate</div>
+                        <div class="kpi-value">18.3%</div>
+                        <div class="kpi-delta dn">↑ 2.1% worsened</div>
+                    </div>
+                    <div class="kpi-card amber">
+                        <div class="kpi-label">Shipping cost</div>
+                        <div class="kpi-value">$31K</div>
+                        <div class="kpi-delta nt">$31 avg/ship</div>
+                    </div>
+                </div>
+                <div class="chart-grid cols-2">
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <div>
+                                <div class="chart-title">Delay rate by carrier</div>
+                                <div class="chart-sub">% of delayed shipments</div>
+                            </div>
+                        </div>
+                        <div class="h-240"><canvas id="c-carrier-delay" role="img"
+                                aria-label="Carrier delay rate horizontal bar chart"></canvas></div>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <div>
+                                <div class="chart-title">Shipping method mix</div>
+                                <div class="chart-sub">By volume</div>
+                            </div>
+                        </div>
+                        <div class="h-240"><canvas id="c-ship-method" role="img"
+                                aria-label="Shipping method doughnut chart"></canvas></div>
+                        <div class="legend" style="margin-top:12px;margin-bottom:0;justify-content:center">
+                            <div class="leg">
+                                <div class="leg-sq" style="background:#4488ff"></div>Standard 44%
+                            </div>
+                            <div class="leg">
+                                <div class="leg-sq" style="background:#00d4aa"></div>Express 38%
+                            </div>
+                            <div class="leg">
+                                <div class="leg-sq" style="background:#ffaa44"></div>Overnight 18%
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="chart-card" style="margin-top:12px">
+                    <div class="chart-header">
+                        <div class="chart-title">Carrier performance</div>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Carrier</th>
+                                <th>Shipments</th>
+                                <th>Avg days</th>
+                                <th>Delay %</th>
+                                <th>Avg cost</th>
+                                <th>Rating</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>DHL</td>
+                                <td>312</td>
+                                <td>3.8d</td>
+                                <td>15%</td>
+                                <td>$28</td>
+                                <td><span class="pill ok">Good</span></td>
+                            </tr>
+                            <tr>
+                                <td>UPS</td>
+                                <td>287</td>
+                                <td>4.1d</td>
+                                <td>12%</td>
+                                <td>$32</td>
+                                <td><span class="pill ok">Good</span></td>
+                            </tr>
+                            <tr>
+                                <td>FedEx</td>
+                                <td>241</td>
+                                <td>4.6d</td>
+                                <td>22%</td>
+                                <td>$35</td>
+                                <td><span class="pill bad">Poor</span></td>
+                            </tr>
+                            <tr>
+                                <td>Aramex</td>
+                                <td>98</td>
+                                <td>5.2d</td>
+                                <td>18%</td>
+                                <td>$24</td>
+                                <td><span class="pill warn">Fair</span></td>
+                            </tr>
+                            <tr>
+                                <td>Local</td>
+                                <td>62</td>
+                                <td>2.9d</td>
+                                <td>9%</td>
+                                <td>$18</td>
+                                <td><span class="pill ok">Good</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- INVENTORY -->
+            <div id="inventory" class="page">
+                <div class="kpi-grid">
+                    <div class="kpi-card teal">
+                        <div class="kpi-label">Inventory value</div>
+                        <div class="kpi-value">$1.2M</div>
+                        <div class="kpi-delta up">↑ 3.2% MoM</div>
+                    </div>
+                    <div class="kpi-card red">
+                        <div class="kpi-label">Out of stock</div>
+                        <div class="kpi-value">47</div>
+                        <div class="kpi-delta dn">critical items</div>
+                    </div>
+                    <div class="kpi-card amber">
+                        <div class="kpi-label">Low stock</div>
+                        <div class="kpi-value">83</div>
+                        <div class="kpi-delta dn">needs reorder</div>
+                    </div>
+                    <div class="kpi-card blue">
+                        <div class="kpi-label">Items available</div>
+                        <div class="kpi-value">24.5K</div>
+                        <div class="kpi-delta nt">across 3 WH</div>
+                    </div>
+                </div>
+                <div class="chart-grid cols-2">
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <div>
+                                <div class="chart-title">Value by warehouse</div>
+                                <div class="chart-sub">USD thousands</div>
+                            </div>
+                        </div>
+                        <div class="h-240"><canvas id="c-wh-value" role="img"
+                                aria-label="Warehouse inventory value bar chart"></canvas></div>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <div>
+                                <div class="chart-title">Stock status</div>
+                                <div class="chart-sub">Product count distribution</div>
+                            </div>
+                        </div>
+                        <div class="h-240"><canvas id="c-stock-status" role="img"
+                                aria-label="Stock status doughnut"></canvas></div>
+                        <div class="legend" style="margin-top:12px;margin-bottom:0;justify-content:center">
+                            <div class="leg">
+                                <div class="leg-sq" style="background:#00d4aa"></div>In stock 72%
+                            </div>
+                            <div class="leg">
+                                <div class="leg-sq" style="background:#ffaa44"></div>Low 17%
+                            </div>
+                            <div class="leg">
+                                <div class="leg-sq" style="background:#ff6b6b"></div>Out 11%
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MARKETING -->
+            <div id="marketing" class="page">
+                <div class="kpi-grid">
+                    <div class="kpi-card teal">
+                        <div class="kpi-label">Total sessions</div>
+                        <div class="kpi-value">1,000</div>
+                        <div class="kpi-delta up">↑ 12% MoM</div>
+                    </div>
+                    <div class="kpi-card blue">
+                        <div class="kpi-label">Conversions</div>
+                        <div class="kpi-value">312</div>
+                        <div class="kpi-delta up">↑ 9% MoM</div>
+                    </div>
+                    <div class="kpi-card amber">
+                        <div class="kpi-label">Conversion rate</div>
+                        <div class="kpi-value">31.2%</div>
+                        <div class="kpi-delta nt">— stable</div>
+                    </div>
+                    <div class="kpi-card red">
+                        <div class="kpi-label">Unique customers</div>
+                        <div class="kpi-value">847</div>
+                        <div class="kpi-delta up">↑ 7% MoM</div>
+                    </div>
+                </div>
+                <div class="chart-grid cols-3">
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <div>
+                                <div class="chart-title">Sessions by channel</div>
+                                <div class="chart-sub">Acquisition source</div>
+                            </div>
+                        </div>
+                        <div class="h-240"><canvas id="c-channel" role="img"
+                                aria-label="Sessions by channel bar chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <div>
+                                <div class="chart-title">Device type</div>
+                                <div class="chart-sub">Session split</div>
+                            </div>
+                        </div>
+                        <div class="h-240"><canvas id="c-device" role="img" aria-label="Device type doughnut"></canvas>
+                        </div>
+                        <div class="legend" style="margin-top:12px;margin-bottom:0;justify-content:center">
+                            <div class="leg">
+                                <div class="leg-sq" style="background:#4488ff"></div>Mobile 51%
+                            </div>
+                            <div class="leg">
+                                <div class="leg-sq" style="background:#00d4aa"></div>Desktop 36%
+                            </div>
+                            <div class="leg">
+                                <div class="leg-sq" style="background:#ffaa44"></div>Tablet 13%
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="chart-grid cols-1">
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <div>
+                                <div class="chart-title">Conversion rate trend</div>
+                                <div class="chart-sub">Monthly · 7 months</div>
+                            </div>
+                        </div>
+                        <div class="h-160"><canvas id="c-conv-trend" role="img"
+                                aria-label="Conversion rate trend line chart"></canvas></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        const titles = {
+            financial: 'Financial Revenue',
+            shipping: 'Shipping Performance',
+            inventory: 'Inventory Status',
+            marketing: 'Marketing & Sessions'
+        };
+
+        function showPage(id, el) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            el.classList.add('active');
+            document.getElementById('page-title').textContent = titles[id];
+        }
+
+        const months = ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr'];
+
+        const chartDefaults = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#5a6a7a', font: { family: 'DM Mono', size: 11 } } },
+                y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#5a6a7a', font: { family: 'DM Mono', size: 11 } } }
+            }
+        };
+
+        const donutOpts = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            cutout: '68%'
+        };
+
+        new Chart(document.getElementById('c-rev-trend'), {
+            type: 'line',
+            data: {
+                labels: months,
+                datasets: [
+                    { label: 'Gross', data: [215, 228, 242, 231, 258, 271, 284], borderColor: '#00d4aa', backgroundColor: 'rgba(0,212,170,0.06)', tension: 0.4, fill: true, pointRadius: 4, pointBackgroundColor: '#00d4aa' },
+                    { label: 'Net', data: [198, 210, 222, 212, 237, 249, 261], borderColor: '#4488ff', backgroundColor: 'rgba(68,136,255,0.06)', tension: 0.4, fill: true, pointRadius: 4, pointBackgroundColor: '#4488ff' }
+                ]
+            },
+            options: { ...chartDefaults, scales: { x: { ...chartDefaults.scales.x }, y: { ...chartDefaults.scales.y, ticks: { ...chartDefaults.scales.y.ticks, callback: v => '$' + v + 'K' } } } }
+        });
+
+        new Chart(document.getElementById('c-payment'), {
+            type: 'doughnut',
+            data: { labels: ['Credit', 'PayPal', 'Debit', 'Other'], datasets: [{ data: [42, 28, 19, 11], backgroundColor: ['#4488ff', '#00d4aa', '#ffaa44', '#5a6a7a'], borderWidth: 0 }] },
+            options: donutOpts
+        });
+
+        new Chart(document.getElementById('c-txn-vol'), {
+            type: 'bar',
+            data: {
+                labels: ['Apr 15', 'Apr 16', 'Apr 17', 'Apr 18', 'Apr 19', 'Apr 20', 'Apr 21', 'Apr 22', 'Apr 23', 'Apr 24'],
+                datasets: [{ data: [88, 102, 76, 95, 110, 84, 98, 115, 92, 105], backgroundColor: 'rgba(68,136,255,0.5)', borderColor: '#4488ff', borderWidth: 1, borderRadius: 4 }]
+            },
+            options: { ...chartDefaults, plugins: { legend: { display: false } } }
+        });
+
+        new Chart(document.getElementById('c-carrier-delay'), {
+            type: 'bar',
+            data: {
+                labels: ['FedEx', 'Aramex', 'DHL', 'UPS', 'Local'],
+                datasets: [{ data: [22, 18, 15, 12, 9], backgroundColor: ['#ff6b6b', '#ffaa44', '#ffaa44', '#00d4aa', '#00d4aa'], borderRadius: 4 }]
+            },
+            options: { ...chartDefaults, indexAxis: 'y', scales: { x: { ...chartDefaults.scales.x, ticks: { ...chartDefaults.scales.x.ticks, callback: v => v + '%' } }, y: { ...chartDefaults.scales.y } } }
+        });
+
+        new Chart(document.getElementById('c-ship-method'), {
+            type: 'doughnut',
+            data: { labels: ['Standard', 'Express', 'Overnight'], datasets: [{ data: [44, 38, 18], backgroundColor: ['#4488ff', '#00d4aa', '#ffaa44'], borderWidth: 0 }] },
+            options: donutOpts
+        });
+
+        new Chart(document.getElementById('c-wh-value'), {
+            type: 'bar',
+            data: {
+                labels: ['WH-001', 'WH-002', 'WH-003'],
+                datasets: [{ data: [420, 380, 290], backgroundColor: ['#00d4aa', 'rgba(0,212,170,0.6)', 'rgba(0,212,170,0.3)'], borderRadius: 6 }]
+            },
+            options: { ...chartDefaults, scales: { x: { ...chartDefaults.scales.x }, y: { ...chartDefaults.scales.y, ticks: { ...chartDefaults.scales.y.ticks, callback: v => '$' + v + 'K' } } } }
+        });
+
+        new Chart(document.getElementById('c-stock-status'), {
+            type: 'doughnut',
+            data: { labels: ['In stock', 'Low stock', 'Out'], datasets: [{ data: [72, 17, 11], backgroundColor: ['#00d4aa', '#ffaa44', '#ff6b6b'], borderWidth: 0 }] },
+            options: donutOpts
+        });
+
+        new Chart(document.getElementById('c-channel'), {
+            type: 'bar',
+            data: {
+                labels: ['Organic', 'Paid', 'Direct', 'Social', 'Email'],
+                datasets: [{ data: [380, 290, 210, 80, 40], backgroundColor: ['#4488ff', 'rgba(68,136,255,0.75)', 'rgba(68,136,255,0.5)', 'rgba(68,136,255,0.3)', 'rgba(68,136,255,0.2)'], borderRadius: 4 }]
+            },
+            options: { ...chartDefaults }
+        });
+
+        new Chart(document.getElementById('c-device'), {
+            type: 'doughnut',
+            data: { labels: ['Mobile', 'Desktop', 'Tablet'], datasets: [{ data: [51, 36, 13], backgroundColor: ['#4488ff', '#00d4aa', '#ffaa44'], borderWidth: 0 }] },
+            options: donutOpts
+        });
+
+        new Chart(document.getElementById('c-conv-trend'), {
+            type: 'line',
+            data: {
+                labels: months,
+                datasets: [{ data: [26, 28, 27, 30, 31, 29, 31], borderColor: '#ffaa44', backgroundColor: 'rgba(255,170,68,0.06)', tension: 0.4, fill: true, pointRadius: 4, pointBackgroundColor: '#ffaa44' }]
+            },
+            options: { ...chartDefaults, scales: { x: { ...chartDefaults.scales.x }, y: { ...chartDefaults.scales.y, ticks: { ...chartDefaults.scales.y.ticks, callback: v => v + '%' } } } }
+        });
+    </script>
+</body>
+
+</html>
